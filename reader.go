@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 
 	"github.com/prometheus/tsdb"
 )
@@ -30,6 +31,8 @@ func main() {
 	}
 
 	for _, val := range vals {
-		fmt.Println(val)
+		if !strings.HasPrefix(val, "solr") {
+			fmt.Println(val)
+		}
 	}
 }
