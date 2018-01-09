@@ -1,8 +1,8 @@
-package main
+package influx_writer
 
 import (
+	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/influxdata/influxdb/client/v2"
@@ -30,20 +30,15 @@ func queryDB(clnt client.Client, cmd string) (res []client.Result, err error) {
 }
 
 type InfluxClient struct {
-	influxUrl string
-	db        string
-	username  string
-	password  string
+	influxUrl   string
+	db          string
+	username    string
+	password    string
+	c           client.Client
+	batchPoints client.BatchPoints
 }
 
-func NewInfluxClient(influxUrl string, db string, username string, password string) *InfluxClient {
-	client := &InfluxClient{
-		influxUrl: influxUrl,
-		db:        db,
-		username:  username,
-		password:  password,
-	}
-
+func NewInfluxClient(influxUrl string, db string, username string, password string) (*InfluxClient, error) {
 	// Create a new HTTPClient
 	c, err := client.NewHTTPClient(client.HTTPConfig{
 		Addr:     influxUrl,
@@ -54,6 +49,14 @@ func NewInfluxClient(influxUrl string, db string, username string, password stri
 		return nil, errors.New("Unable to create influx http client: " + err.Error())
 	}
 
+	influxClient := &InfluxClient{
+		influxUrl: influxUrl,
+		db:        db,
+		username:  username,
+		password:  password,
+		c:         c,
+	}
+
 	// Create a new database
 	_, err = queryDB(c, fmt.Sprintf("CREATE DATABASE %s", db))
 	if err != nil {
@@ -61,43 +64,54 @@ func NewInfluxClient(influxUrl string, db string, username string, password stri
 	}
 
 	// Create a default retention policy
-	_, err = queryDB(c, fmt.Sprintf("CREATE RETENTION POLICY autogen ON %s DURATION 1w REPLICATION 1 DEFAULT", MYDB))
-	if err != nil {
-		return nil, errors.New("Unable to create retention policy: " + err.Error())
-	}
+	//_, err = queryDB(c, fmt.Sprintf("CREATE RETENTION POLICY autogen ON %s DURATION 1w REPLICATION 1 DEFAULT", MYDB))
+	//if err != nil {
+	//	return nil, errors.New("Unable to create retention policy: " + err.Error())
+	//}
 
+	return influxClient, nil
 }
 
-func (client *InfluxClient) WritePoint() {
+func (influxClient *InfluxClient) AddBatchPoint(name string, tags map[string]string, timeMs int64, value float64) error {
+	if influxClient.batchPoints == nil {
+		// Create a new point batch
+		bp, err := client.NewBatchPoints(client.BatchPointsConfig{
+			Database:  influxClient.db,
+			Precision: "ms",
+		})
+		if err != nil {
+			return errors.New("Unable to create batch points: " + err.Error())
+		}
 
-}
-
-func main() {
-	// Create a new point batch
-	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
-		Database:  MYDB,
-		Precision: "us",
-	})
-	if err != nil {
-		log.Fatal(err)
+		influxClient.batchPoints = bp
 	}
 
 	// Create a point and add to batch
-	tags := map[string]string{"cpu": "cpu-total"}
 	fields := map[string]interface{}{
-		"idle":   10.1,
-		"system": 53.3,
-		"user":   46.6,
+		"value": value,
 	}
 
-	pt, err := client.NewPoint("cpu_usage", tags, fields, time.Now())
+	timestamp := time.Unix(0, timeMs*int64(time.Millisecond))
+	pt, err := client.NewPoint(name, tags, fields, timestamp)
 	if err != nil {
-		log.Fatal(err)
+		return errors.New("Unable to create point: " + err.Error())
 	}
-	bp.AddPoint(pt)
 
-	// Write the batch
-	if err := c.Write(bp); err != nil {
-		log.Fatal(err)
+	influxClient.batchPoints.AddPoint(pt)
+
+	return nil
+}
+
+func (client *InfluxClient) WriteBatch() error {
+	if client.batchPoints == nil {
+		return errors.New("No batch found")
 	}
+
+	if err := client.c.Write(client.batchPoints); err != nil {
+		return errors.New("Unable to write batch: " + err.Error())
+	}
+
+	client.batchPoints = nil
+
+	return nil
 }

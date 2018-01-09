@@ -1,18 +1,29 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
 	"strings"
 
+	"github.com/hyperpilotio/tsdb_reader/influx_writer"
 	"github.com/prometheus/tsdb"
 	"github.com/prometheus/tsdb/labels"
 )
 
 func WriteSeriesToInflux(db *tsdb.DB, prefixes []string) error {
+	influxWriter, err := influx_writer.NewInfluxClient("http://localhost:8086", "prometheus", "root", "root")
+	if err != nil {
+		return errors.New("Unable to create influx client: " + err.Error())
+	}
+
 	allMetrics := []string{}
-	metricNames := GetLabelValues(db, "__name__")
+	metricNames, err := GetLabelValues(db, "__name__")
+	if err != nil {
+		return errors.New("Unable to get all metric names: " + err.Error())
+	}
+
 	for _, name := range metricNames {
 		for _, prefix := range prefixes {
 			if strings.HasPrefix(name, prefix) {
@@ -22,7 +33,7 @@ func WriteSeriesToInflux(db *tsdb.DB, prefixes []string) error {
 		}
 	}
 
-	fmt.Println("Found metrics to write: %+v", allMetrics)
+	fmt.Println("Found metrics to write: ", allMetrics)
 
 	for _, metric := range allMetrics {
 		set, err := GetSeries(db, "__name__", metric)
@@ -36,15 +47,23 @@ func WriteSeriesToInflux(db *tsdb.DB, prefixes []string) error {
 			}
 
 			series := set.At()
-			for series.Next() {
-				iterator := series.Iterator()
-				for iterator.Next() {
-					t, v := iterator.At()
-
+			tags := map[string]string{}
+			for _, label := range series.Labels() {
+				if label.Name != "__name__" {
+					tags[label.Name] = label.Value
 				}
 			}
+
+			iterator := series.Iterator()
+			for iterator.Next() {
+				t, v := iterator.At()
+				influxWriter.AddBatchPoint(metric, tags, t, v)
+			}
+
 		}
 	}
+
+	return nil
 }
 
 func GetLabelValues(db *tsdb.DB, labelName string) ([]string, error) {
@@ -100,5 +119,7 @@ func main() {
 	//PrintLabelValues(db, labelName)
 	//PrintSeries(db)
 	prefixes := []string{"container_", "machine_", "kube_", "net_", "process_"}
-	WriteSeriesToInflux(db, prefixes)
+	if err := WriteSeriesToInflux(db, prefixes); err != nil {
+		fmt.Println("Write data to influx failed: " + err.Error())
+	}
 }
