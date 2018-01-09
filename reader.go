@@ -147,5 +147,23 @@ func main() {
 			fmt.Println("Write data to influx failed: " + err.Error())
 			return
 		}
+		break
+	case "get_metric_example":
+		fmt.Println("Get first series example..")
+		metricName := os.Args[3]
+		set, err := GetSeries(db, "__name__", metricName)
+		if err != nil {
+			fmt.Println("Unable to get series: " + err.Error())
+			return
+		}
+		set.Next()
+		series := set.At()
+		fmt.Println("Labels for metric: ", series.Labels())
+		iterator := series.Iterator()
+		iterator.Next()
+		t, v := iterator.At()
+		fmt.Println("First time and value: ", t, v)
+		break
 	}
+
 }
