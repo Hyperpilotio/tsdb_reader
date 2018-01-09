@@ -143,6 +143,9 @@ func main() {
 	case "write_influx":
 		fmt.Println("Writing data into influx..")
 		prefixes := []string{"container_", "machine_", "kube_", "net_", "process_"}
+		if len(os.Args) >= 4 {
+			prefixes = strings.Split(os.Args[3], ",")
+		}
 		if err := WriteSeriesToInflux(db, prefixes); err != nil {
 			fmt.Println("Write data to influx failed: " + err.Error())
 			return
