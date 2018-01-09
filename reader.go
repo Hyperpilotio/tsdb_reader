@@ -61,6 +61,9 @@ func WriteSeriesToInflux(db *tsdb.DB, prefixes []string) error {
 				influxWriter.AddBatchPoint(metric, tags, t, v)
 			}
 
+			if err := influxWriter.WriteBatch(); err != nil {
+				return errors.New("Unable to write batch: " + err.Error())
+			}
 		}
 	}
 
