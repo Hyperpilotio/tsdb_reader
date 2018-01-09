@@ -10,50 +10,77 @@ import (
 	"github.com/prometheus/tsdb/labels"
 )
 
-func PrintLabelValues(db *tsdb.DB, labelName string) error {
+func WriteSeriesToInflux(db *tsdb.DB, prefixes []string) error {
+	allMetrics := []string{}
+	metricNames := GetLabelValues(db, "__name__")
+	for _, name := range metricNames {
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(name, prefix) {
+				allMetrics = append(allMetrics, name)
+				break
+			}
+		}
+	}
+
+	fmt.Println("Found metrics to write: %+v", allMetrics)
+
+	for _, metric := range allMetrics {
+		set, err := GetSeries(db, "__name__", metric)
+		if err != nil {
+			return errors.New("Unable to get series: " + err.Error())
+		}
+
+		for set.Next() {
+			if set.Err() != nil {
+				return errors.New("Series set error: " + set.Err().Error())
+			}
+
+			series := set.At()
+			for series.Next() {
+				iterator := series.Iterator()
+				for iterator.Next() {
+					t, v := iterator.At()
+
+				}
+			}
+		}
+	}
+}
+
+func GetLabelValues(db *tsdb.DB, labelName string) ([]string, error) {
 	q, err := db.Querier(math.MinInt64, math.MaxInt64)
 	if err != nil {
-		return fmt.Errorf("Unable to create queries: " + err.Error())
+		return nil, fmt.Errorf("Unable to create queries: " + err.Error())
 	}
 	defer q.Close()
 
 	vals, err := q.LabelValues(labelName)
 	if err != nil {
-		return fmt.Errorf("Unable to get label values: " + err.Error())
+		return nil, fmt.Errorf("Unable to get label values: " + err.Error())
 	}
 
+	labelValues := []string{}
 	for _, val := range vals {
-		// We don't need solr data and there are tons of them.
-		if !strings.HasPrefix(val, "solr") {
-			fmt.Println(val)
-		}
+		labelValues = append(labelValues, val)
 	}
 
-	return nil
+	return labelValues, nil
 }
 
-func PrintSeries(db *tsdb.DB) error {
+func GetSeries(db *tsdb.DB, labelName, labelValue string) (tsdb.SeriesSet, error) {
 	q, err := db.Querier(math.MinInt64, math.MaxInt64)
 	if err != nil {
-		return fmt.Errorf("Unable to create queries: " + err.Error())
+		return nil, fmt.Errorf("Unable to create queries: " + err.Error())
 	}
 	defer q.Close()
 
-	set, err := q.Select(labels.NewEqualMatcher("node", "gke-primary-action-classify-uc1b-2017-72cfea2c-6r5b"))
+	//set, err := q.Select(labels.NewEqualMatcher("node", "gke-primary-action-classify-uc1b-2017-72cfea2c-6r5b"))
+	set, err := q.Select(labels.NewEqualMatcher(labelName, labelValue))
 	if err != nil {
-		return fmt.Errorf("Unable to select: " + err.Error())
+		return nil, fmt.Errorf("Unable to select: " + err.Error())
 	}
 
-	for set.Next() {
-		series := set.At()
-		fmt.Println("All labels: %+v", series.Labels())
-		iter := series.Iterator()
-		iter.Next()
-		t, v := iter.At()
-		fmt.Println("First point t %d:%f", t, v)
-	}
-
-	return nil
+	return set, nil
 }
 
 func main() {
@@ -71,5 +98,7 @@ func main() {
 		}
 	*/
 	//PrintLabelValues(db, labelName)
-	PrintSeries(db)
+	//PrintSeries(db)
+	prefixes := []string{"container_", "machine_", "kube_", "net_", "process_"}
+	WriteSeriesToInflux(db, prefixes)
 }

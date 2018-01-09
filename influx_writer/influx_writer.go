@@ -29,29 +29,50 @@ func queryDB(clnt client.Client, cmd string) (res []client.Result, err error) {
 	return res, nil
 }
 
-func main() {
+type InfluxClient struct {
+	influxUrl string
+	db        string
+	username  string
+	password  string
+}
+
+func NewInfluxClient(influxUrl string, db string, username string, password string) *InfluxClient {
+	client := &InfluxClient{
+		influxUrl: influxUrl,
+		db:        db,
+		username:  username,
+		password:  password,
+	}
+
 	// Create a new HTTPClient
 	c, err := client.NewHTTPClient(client.HTTPConfig{
-		Addr:     INFLUXURL,
-		Username: USERNAME,
-		Password: PASSWORD,
+		Addr:     influxUrl,
+		Username: username,
+		Password: password,
 	})
 	if err != nil {
-		log.Fatal(err)
+		return nil, errors.New("Unable to create influx http client: " + err.Error())
 	}
 
 	// Create a new database
-	_, err = queryDB(c, fmt.Sprintf("CREATE DATABASE %s", MYDB))
+	_, err = queryDB(c, fmt.Sprintf("CREATE DATABASE %s", db))
 	if err != nil {
-		log.Fatal(err)
+		return nil, errors.New("Unable to create database: " + err.Error())
 	}
 
 	// Create a default retention policy
 	_, err = queryDB(c, fmt.Sprintf("CREATE RETENTION POLICY autogen ON %s DURATION 1w REPLICATION 1 DEFAULT", MYDB))
 	if err != nil {
-		log.Fatal(err)
+		return nil, errors.New("Unable to create retention policy: " + err.Error())
 	}
 
+}
+
+func (client *InfluxClient) WritePoint() {
+
+}
+
+func main() {
 	// Create a new point batch
 	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:  MYDB,
