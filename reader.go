@@ -107,7 +107,7 @@ func GetSeries(db *tsdb.DB, labelName, labelValue string) (tsdb.SeriesSet, error
 }
 
 func main() {
-	path := os.Args[1]
+	path := os.Args[2]
 	options := &tsdb.Options{
 		WALFlushInterval:  0,
 		RetentionDuration: 0,
@@ -121,16 +121,31 @@ func main() {
 		return
 	}
 
-	/*
+	action := os.Args[1]
+
+	switch action {
+	case "label_values":
+		fmt.Println("Printing label values..")
 		labelName := "__name__"
-		if len(os.Args) >= 3 {
-			labelName = os.Args[2]
+		if len(os.Args) >= 4 {
+			labelName = os.Args[3]
 		}
-	*/
-	//PrintLabelValues(db, labelName)
-	//PrintSeries(db)
-	prefixes := []string{"container_", "machine_", "kube_", "net_", "process_"}
-	if err := WriteSeriesToInflux(db, prefixes); err != nil {
-		fmt.Println("Write data to influx failed: " + err.Error())
+
+		labelValues, err := GetLabelValues(db, labelName)
+		if err != nil {
+			fmt.Println("Unable to get label values: " + err.Error())
+			return
+		}
+		for _, value := range labelValues {
+			fmt.Println(value)
+		}
+		break
+	case "write_influx":
+		fmt.Println("Writing data into influx..")
+		prefixes := []string{"container_", "machine_", "kube_", "net_", "process_"}
+		if err := WriteSeriesToInflux(db, prefixes); err != nil {
+			fmt.Println("Write data to influx failed: " + err.Error())
+			return
+		}
 	}
 }
