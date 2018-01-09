@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -13,16 +14,11 @@ import (
 	"github.com/prometheus/tsdb/labels"
 )
 
-func WriteSeriesToInflux(db *tsdb.DB, prefixes []string) error {
-	influxWriter, err := influx_writer.NewInfluxClient("http://localhost:8086", "prometheus", "root", "root")
-	if err != nil {
-		return errors.New("Unable to create influx client: " + err.Error())
-	}
-
+func GetMetricNames(db *tsdb.DB, prefixes []string) ([]string, error) {
 	allMetrics := []string{}
 	metricNames, err := GetLabelValues(db, "__name__")
 	if err != nil {
-		return errors.New("Unable to get all metric names: " + err.Error())
+		return nil, errors.New("Unable to get all metric names: " + err.Error())
 	}
 
 	for _, name := range metricNames {
@@ -34,6 +30,54 @@ func WriteSeriesToInflux(db *tsdb.DB, prefixes []string) error {
 		}
 	}
 
+	return allMetrics, nil
+}
+
+func PrintAllLabels(db *tsdb.DB, prefixes []string) error {
+	allMetrics, err := GetMetricNames(db, prefixes)
+	if err != nil {
+		return errors.New("Unable to get metric names: " + err.Error())
+	}
+
+	for _, metric := range allMetrics {
+		set, err := GetSeries(db, "__name__", metric)
+		if err != nil {
+			return errors.New("Unable to get series: " + err.Error())
+		}
+
+		for set.Next() {
+			if set.Err() != nil {
+				return errors.New("Series set error: " + set.Err().Error())
+			}
+
+			series := set.At()
+			tags := map[string]string{}
+			for _, label := range series.Labels() {
+				tags[label.Name] = label.Value
+			}
+
+			jsonString, err := json.Marshal(tags)
+			if err != nil {
+				return errors.New("Unable to encode json: " + err.Error())
+			}
+
+			fmt.Println(string(jsonString))
+		}
+	}
+
+	return nil
+}
+
+func WriteSeriesToInflux(db *tsdb.DB, prefixes []string) error {
+	influxWriter, err := influx_writer.NewInfluxClient("http://localhost:8086", "prometheus", "root", "root")
+	if err != nil {
+		return errors.New("Unable to create influx client: " + err.Error())
+	}
+
+	allMetrics, err := GetMetricNames(db, prefixes)
+	if err != nil {
+		return errors.New("Unable to get metric names: " + err.Error())
+	}
 	fmt.Println("Found metrics to write: ", allMetrics)
 
 	for _, metric := range allMetrics {
@@ -124,6 +168,15 @@ func main() {
 	action := os.Args[1]
 
 	switch action {
+	case "all_labels":
+		fmt.Println("Print all labels from all series..")
+		prefixes := []string{"container_", "machine_", "kube_", "net_", "process_"}
+		if len(os.Args) >= 4 {
+			prefixes = strings.Split(os.Args[3], ",")
+		}
+		PrintAllLabels(db, prefixes)
+		break
+
 	case "label_values":
 		fmt.Println("Printing label values..")
 		labelName := "__name__"
