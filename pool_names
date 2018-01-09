@@ -1,0 +1,11 @@
+Printing label values..
+action-classify
+action-gke
+db
+db-preempt
+druid-preempt
+druid-ssd-preempt
+mixed
+mixed-preempt
+nginx
+ping-gke
