@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/hyperpilotio/tsdb_reader/influx_writer"
 	"github.com/prometheus/tsdb"
@@ -104,7 +105,14 @@ func GetSeries(db *tsdb.DB, labelName, labelValue string) (tsdb.SeriesSet, error
 
 func main() {
 	path := os.Args[1]
-	db, err := tsdb.Open(path, nil, nil, nil)
+	options := &tsdb.Options{
+		WALFlushInterval:  0,
+		RetentionDuration: 0,
+		BlockRanges:       tsdb.ExponentialBlockRanges(int64(2*time.Hour)/1e6, 3, 5),
+		NoLockfile:        true,
+	}
+
+	db, err := tsdb.Open(path, nil, nil, options)
 	if err != nil {
 		fmt.Println("Unable to create db: " + err.Error())
 		return
