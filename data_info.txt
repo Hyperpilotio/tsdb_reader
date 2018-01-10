@@ -1,0 +1,39 @@
+*** Pools: 10
+db-preempt set([u'us-central1-c'])
+ping-gke set([u'us-central1-b'])
+action-gke set([u'us-central1-b'])
+db set([u'us-central1-c', u'us-central1-b'])
+nginx set([u'us-central1-c', u'us-central1-b'])
+druid-ssd-preempt set([u'us-central1-b'])
+druid-preempt set([u'us-central1-b'])
+mixed set([u'us-central1-c', u'us-central1-b'])
+action-classify set([u'us-central1-c', u'us-central1-b'])
+mixed-preempt set([u'us-central1-c', u'us-central1-b'])
+
+
+*** Nodes per pool (us-central1-b, us-central1-c)
+db-preempt 22 (0, 22)
+ping-gke 323 (323, 0)
+action-gke 5717 (5717, 0)
+db 37 (29, 8)
+nginx 12 (6, 6)
+druid-ssd-preempt 17 (17, 0)
+druid-preempt 14 (14, 0)
+mixed 48 (38, 10)
+action-classify 40 (20, 20)
+mixed-preempt 59 (51, 8)
+
+
+** Node types per pool
+db-preempt {u'n1-highmem-16': 22}
+ping-gke {u'custom-4-6400': 323}
+action-gke {u'custom-32-65536': 5717}
+db {u'n1-highmem-16': 37}
+nginx {u'n1-standard-8': 12}
+druid-ssd-preempt {u'n1-highmem-16': 17}
+druid-preempt {u'n1-highmem-16': 14}
+mixed {u'custom-8-20224': 48}
+action-classify {u'custom-8-20224': 40}
+mixed-preempt {u'custom-8-20224': 59}
+
+
