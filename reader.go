@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,7 +17,7 @@ import (
 
 func GetMetricNames(db *tsdb.DB, prefixes []string) ([]string, error) {
 	allMetrics := []string{}
-	metricNames, err := GetLabelValues(db, "__name__")
+	metricNames, err := GetLabelValues(db, "__name__", nil)
 	if err != nil {
 		return nil, errors.New("Unable to get all metric names: " + err.Error())
 	}
@@ -40,7 +41,7 @@ func PrintAllLabels(db *tsdb.DB, prefixes []string) error {
 	}
 
 	for _, metric := range allMetrics {
-		set, err := GetSeries(db, "__name__", metric)
+		set, err := GetSeries(db, map[string]string{"__name__": metric})
 		if err != nil {
 			return errors.New("Unable to get series: " + err.Error())
 		}
@@ -81,7 +82,7 @@ func WriteSeriesToInflux(db *tsdb.DB, prefixes []string) error {
 	fmt.Println("Found metrics to write: ", allMetrics)
 
 	for _, metric := range allMetrics {
-		set, err := GetSeries(db, "__name__", metric)
+		set, err := GetSeries(db, map[string]string{"__name__": metric})
 		if err != nil {
 			return errors.New("Unable to get series: " + err.Error())
 		}
@@ -114,14 +115,21 @@ func WriteSeriesToInflux(db *tsdb.DB, prefixes []string) error {
 	return nil
 }
 
-func GetLabelValues(db *tsdb.DB, labelName string) ([]string, error) {
+func GetLabelValues(db *tsdb.DB, labelName string, constraint *labels.Label) ([]string, error) {
 	q, err := db.Querier(math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create queries: " + err.Error())
 	}
 	defer q.Close()
 
-	vals, err := q.LabelValues(labelName)
+	var vals []string
+
+	if constraint != nil {
+		vals, err = q.LabelValuesFor(labelName, *constraint)
+	} else {
+		vals, err = q.LabelValues(labelName)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("Unable to get label values: " + err.Error())
 	}
@@ -134,15 +142,19 @@ func GetLabelValues(db *tsdb.DB, labelName string) ([]string, error) {
 	return labelValues, nil
 }
 
-func GetSeries(db *tsdb.DB, labelName, labelValue string) (tsdb.SeriesSet, error) {
+func GetSeries(db *tsdb.DB, filter map[string]string) (tsdb.SeriesSet, error) {
 	q, err := db.Querier(math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create queries: " + err.Error())
 	}
 	defer q.Close()
 
-	//set, err := q.Select(labels.NewEqualMatcher("node", "gke-primary-action-classify-uc1b-2017-72cfea2c-6r5b"))
-	set, err := q.Select(labels.NewEqualMatcher(labelName, labelValue))
+	matchers := []labels.Matcher{}
+	for k, v := range filter {
+		matchers = append(matchers, labels.NewEqualMatcher(k, v))
+	}
+
+	set, err := q.Select(matchers...)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to select: " + err.Error())
 	}
@@ -184,14 +196,25 @@ func main() {
 			labelName = os.Args[3]
 		}
 
-		labelValues, err := GetLabelValues(db, labelName)
+		var constraint *labels.Label
+		if len(os.Args) >= 5 {
+			parts := strings.Split(os.Args[4], "=")
+			constraint = &labels.Label{
+				Name:  parts[0],
+				Value: parts[1],
+			}
+		}
+
+		labelValues, err := GetLabelValues(db, labelName, constraint)
 		if err != nil {
 			fmt.Println("Unable to get label values: " + err.Error())
 			return
 		}
+
 		for _, value := range labelValues {
 			fmt.Println(value)
 		}
+
 		break
 	case "write_influx":
 		fmt.Println("Writing data into influx..")
@@ -205,20 +228,60 @@ func main() {
 		}
 		break
 	case "get_metric_example":
-		fmt.Println("Get first series example..")
+		fmt.Println("Get series examples..")
 		metricName := os.Args[3]
-		set, err := GetSeries(db, "__name__", metricName)
+		seriesCount := 1
+		if len(os.Args) >= 5 {
+			seriesCount, err = strconv.Atoi(os.Args[4])
+			if err != nil {
+				fmt.Println("Unable to convert series count to int: " + err.Error())
+				return
+			}
+		}
+
+		metricCount := 1
+		if len(os.Args) >= 6 {
+			metricCount, err = strconv.Atoi(os.Args[5])
+			if err != nil {
+				fmt.Println("Unable to convert metric count to int: " + err.Error())
+				return
+			}
+		}
+
+		filter := map[string]string{
+			"__name__": metricName,
+		}
+		if len(os.Args) >= 7 {
+			for _, pair := range strings.Split(os.Args[6], ",") {
+				parts := strings.Split(pair, "=")
+				filter[parts[0]] = parts[1]
+			}
+		}
+
+		set, err := GetSeries(db, filter)
 		if err != nil {
 			fmt.Println("Unable to get series: " + err.Error())
 			return
 		}
-		set.Next()
-		series := set.At()
-		fmt.Println("Labels for metric: ", series.Labels())
-		iterator := series.Iterator()
-		iterator.Next()
-		t, v := iterator.At()
-		fmt.Println("First time and value: ", t, v)
+
+		for i := 1; i <= seriesCount; i++ {
+			if !set.Next() {
+				fmt.Println("No more series")
+				return
+			}
+			series := set.At()
+			fmt.Println("Labels for series: ", series.Labels())
+
+			iterator := series.Iterator()
+			for j := 1; j <= metricCount; j++ {
+				if !iterator.Next() {
+					fmt.Println("No more data")
+					return
+				}
+				t, v := iterator.At()
+				fmt.Println("Time and value: ", t, v)
+			}
+		}
 		break
 	}
 
