@@ -151,7 +151,16 @@ func GetSeries(db *tsdb.DB, filter map[string]string) (tsdb.SeriesSet, error) {
 
 	matchers := []labels.Matcher{}
 	for k, v := range filter {
-		matchers = append(matchers, labels.NewEqualMatcher(k, v))
+		if strings.Contains(v, "*") {
+			matcher, err := labels.NewRegexpMatcher(k, v)
+			if err != nil {
+				return nil, errors.New("Unable to create regex matcher: " + err.Error())
+			}
+			matchers = append(matchers, matcher)
+		} else {
+			matchers = append(matchers, labels.NewEqualMatcher(k, v))
+		}
+
 	}
 
 	set, err := q.Select(matchers...)
