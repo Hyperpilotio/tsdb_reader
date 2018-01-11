@@ -15,7 +15,7 @@ How to pull smyte data:
 - Download one directory only:
   mkdir 01C1RQ8N3NA5V5KMRBWTAB8V2K/
   cd 01C1RQ8N3NA5V5KMRBWTAB8V2K/
-  gsutil rsync gs://hyperpilot-prometheus-backup/smyte/01C1RQ8N3NA5V5KMRBWTAB8V2K/ .
+  gsutil rsync -r gs://hyperpilot-prometheus-backup/smyte/01C1RQ8N3NA5V5KMRBWTAB8V2K/ .
 
 
 I pushed a new update for tsdb_reader to support filtering metrics based on labels
