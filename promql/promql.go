@@ -7,8 +7,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/promql"
-	"github.com/prometheus/prometheus/storage/tsdb"
+	promtsdb "github.com/prometheus/prometheus/storage/tsdb"
+	"github.com/prometheus/tsdb"
 )
 
 func parseMsString(value string) (*time.Time, error) {
@@ -27,20 +30,30 @@ func main() {
 		return
 	}
 
-	options := promql.EngineOptions{}
-	tsdbOptions := tsdb.Options{
-		WALFlushInterval: 0,
-		Retention:        0,
-		NoLockfile:       true,
+	var minBlockDuration model.Duration
+	minBlockDuration.Set("2h")
+	w := log.NewSyncWriter(os.Stdout)
+	logger := log.NewLogfmtLogger(w)
+	options := promql.EngineOptions{
+		MaxConcurrentQueries: 10,
+		Timeout:              2 * time.Hour,
+		Logger:               logger,
 	}
-	storage := &tsdb.ReadyStorage{}
-	db, err := tsdb.Open(os.Args[1], nil, nil, &tsdbOptions)
+	tsdbOptions := tsdb.Options{
+		WALFlushInterval:  0,
+		RetentionDuration: 0,
+		BlockRanges:       tsdb.ExponentialBlockRanges(int64(2*time.Hour)/1e6, 3, 5),
+		NoLockfile:        true,
+	}
+	tsdbPath := os.Args[1]
+	fmt.Println(tsdbPath)
+	db, err := tsdb.Open(tsdbPath, nil, nil, &tsdbOptions)
 	if err != nil {
 		fmt.Println("Unable to open tsdb: " + err.Error())
 		return
 	}
-	storage.Set(db, 0)
-	engine := promql.NewEngine(storage, &options)
+	adapter := promtsdb.Adapter(db, 0)
+	engine := promql.NewEngine(adapter, &options)
 	queryString := os.Args[2]
 	startTime, err := parseMsString(os.Args[3])
 	if err != nil {
@@ -67,7 +80,7 @@ func main() {
 
 	result := query.Exec(context.Background())
 	if result.Err != nil {
-		fmt.Println("Query exec error: " + err.Error())
+		fmt.Println("Query exec error: " + result.Err.Error())
 		return
 	}
 
