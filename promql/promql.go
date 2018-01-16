@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/prometheus/promql"
 	promtsdb "github.com/prometheus/prometheus/storage/tsdb"
 	"github.com/prometheus/tsdb"
+	"strings"
 )
 
 func parseMsString(value string) (*time.Time, error) {
@@ -24,9 +25,55 @@ func parseMsString(value string) (*time.Time, error) {
 	return &t, nil
 }
 
+
+func printMatrixAsCsv(matrix promql.Matrix) {
+	firstLine := true
+	columns := []string{"time", "value"}
+	csvFormat := "%d,%f"
+	for _, series := range matrix {
+		if firstLine {
+			for _, label := range series.Metric {
+				columns = append(columns, label.Name)
+				csvFormat += ",%s"
+			}
+			firstLine = false
+			fmt.Println(strings.Join(columns, ","))
+		}
+		for _, point := range series.Points {
+			values := []interface{}{point.T, point.V}
+			for _, label := range series.Metric {
+				values = append(values, label.Value)
+			}
+			fmt.Printf(csvFormat+"\n", values...)
+		}
+	}
+}
+
+func printVectorAsCsv(vector promql.Vector) {
+	firstLine := true
+	columns := []string{"time", "value"}
+	csvFormat := "%d,%f"
+	for _, sample := range vector {
+		if firstLine {
+			for _, label := range sample.Metric {
+				columns = append(columns, label.Name)
+				csvFormat += ",%s"
+			}
+			firstLine = false
+			fmt.Println(strings.Join(columns, ","))
+		}
+		values := []interface{}{sample.T, sample.V}
+		for _, label := range sample.Metric {
+			values = append(values, label.Value)
+		}
+		fmt.Printf(csvFormat +"\n", values...)
+	}
+}
+
+
 func main() {
 	if len(os.Args) < 4 {
-		fmt.Println("promsql <tsdb_path> <query> <time> [<end_time>]")
+		fmt.Println("promsql <tsdb_path> <query> <time> [<end_time> <interval_seconds>]")
 		return
 	}
 
@@ -68,7 +115,19 @@ func main() {
 			fmt.Println("Unable to parse end time: " + err.Error())
 			return
 		}
-		query, err = engine.NewRangeQuery(queryString, *startTime, *endTime, 5*time.Second)
+		interval := 5*time.Second
+		if len(os.Args) >= 6 {
+			intervalSeconds, err := strconv.Atoi(os.Args[5])
+			if err != nil {
+				fmt.Println("Unable to parse interval seconds: " + err.Error())
+				return
+			}
+
+			interval = time.Duration(intervalSeconds) * time.Second
+		}
+
+		fmt.Println("Running range query with query, start and end time: ", queryString, *startTime, *endTime)
+		query, err = engine.NewRangeQuery(queryString, *startTime, *endTime, interval)
 	} else {
 		query, err = engine.NewInstantQuery(queryString, *startTime)
 	}
@@ -84,6 +143,12 @@ func main() {
 		return
 	}
 
-	fmt.Println("Results:")
-	fmt.Println(result.Value)
+	switch result.Value.Type() {
+	case promql.ValueTypeVector:
+		vector, _ := result.Vector()
+		printVectorAsCsv(vector)
+	case promql.ValueTypeMatrix:
+		matrix, _ := result.Matrix()
+		printMatrixAsCsv(matrix)
+	}
 }
