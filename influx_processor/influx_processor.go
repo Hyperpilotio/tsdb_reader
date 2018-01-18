@@ -17,6 +17,7 @@ const (
 )
 
 type SummaryStats struct {
+	count           int64
 	mean            float64
 	max             float64
 	std             float64
@@ -50,17 +51,19 @@ func GetSummaryStatsForMetric(clnt client.Client, db string, metric string, tags
 		}
 	}
 
-	queryCmd := fmt.Sprintf("SELECT mean(*),max(*),stddev(*) from %s %s", metric, filter)
+	queryCmd := fmt.Sprintf("SELECT count(*),mean(*),max(*),stddev(*) from %s %s", metric, filter)
 	//fmt.Println("Running query: " + queryCmd)
 	result, err := queryDB(clnt, db, queryCmd)
 	if err != nil || len(result[0].Series) == 0 {
 		return nil, errors.New("Unable to select stats for metric " + metric)
 	}
+	countVal, _ := result[0].Series[0].Values[0][1].(json.Number).Int64()
 	meanVal, _ := result[0].Series[0].Values[0][1].(json.Number).Float64()
 	maxVal, _ := result[0].Series[0].Values[0][2].(json.Number).Float64()
 	stdVal, _ := result[0].Series[0].Values[0][3].(json.Number).Float64()
 
 	ss := &SummaryStats{
+		count:           countVal,
 		mean:            meanVal,
 		max:             maxVal,
 		std:             stdVal,
@@ -82,8 +85,8 @@ func main() {
 	}
 
 	nodepools := []string{"action-classify", "action-gke", "db", "db-preempt", "druid-preempt", "druid-ssd-preempt", "mixed", "mixed-preempt", "nginx", "ping-gke"}
-	metrics := []string{"container_memory_working_set_bytes"}
-	// metrics := []string{"container_cpu_usage_seconds_total", "container_memory_working_set_bytes", "container_network_receive_bytes_total", "container_network_transmit_bytes_total", "container_fs_reads_bytes_total", "container_fs_writes_bytes_total"}
+	//metrics := []string{"container_memory_working_set_bytes"}
+	metrics := []string{"container_cpu_usage_seconds_total", "container_memory_usage_bytes", "container_network_receive_bytes_total", "container_network_transmit_bytes_total", "container_fs_reads_bytes_total", "container_fs_writes_bytes_total"}
 
 	summaryStatsMap := make(map[string]map[string]SummaryStats)
 	for _, metric := range metrics {

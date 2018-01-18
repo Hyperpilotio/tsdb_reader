@@ -64,7 +64,7 @@ func NewInfluxClient(influxUrl string, db string, username string, password stri
 	}
 
 	// Create a default retention policy
-	//_, err = queryDB(c, fmt.Sprintf("CREATE RETENTION POLICY autogen ON %s DURATION 1w REPLICATION 1 DEFAULT", MYDB))
+	//_, err = queryDB(c, fmt.Sprintf("CREATE RETENTION POLICY autogen ON %s DURATION 4w REPLICATION 1 SHARD DURATION 4w DEFAULT", MYDB))
 	//if err != nil {
 	//	return nil, errors.New("Unable to create retention policy: " + err.Error())
 	//}
