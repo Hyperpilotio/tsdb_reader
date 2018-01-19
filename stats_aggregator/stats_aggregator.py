@@ -1,13 +1,11 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
+INPUT_DIR = "~/data/query-result/"
 OUTPUT_DIR = "~/data/summary-stats/"
-CSV_LIST = {'cpu': "~/data/query-result/cpu_util_per_instance_95p.csv",
-            'memory': "~/data/query-result/mem_util_per_instance_95p.csv",
-            'network_send': "~/data/query-result/net_util_send_per_instance_95p.csv",
-            'network_receive': "~/data/query-result/net_util_receive_per_instance_95p.csv",
-            'disk_read': "~/data/query-result/disk_util_read_per_instance_95p.csv",
-            'disk_write': "~/data/query-result/disk_util_write_per_instance_95p.csv"}
+FIG_DIR = "~/data/summary-figs/"
+METRIC_NAME = "_util_per_instance_"
+RES_LIST = ['cpu', 'mem', 'net_send', 'net_receive', 'disk_read', 'disk_write']
 POOL_LIST = ['action-classify', 'action-gke', 'db', 'db-preempt', 'druid-preempt', 'druid-ssd-preempt',
               'mixed', 'mixed-preempt', 'nginx', 'ping-gke']
 STATS_LIST = ['count', 'mean', 'std', 'min', '50%', '90%', '95%', 'max']
@@ -17,7 +15,17 @@ class StatsAggregator(object):
     def __init__(self):
         self.summary_stats = pd.Panel(major_axis=STATS_LIST, minor_axis=POOL_LIST)
 
-    def process_csv(self, res, csvfile):
+    def get_csv_list(self, res_list, data_dir, metric_name, stat_type):
+        csv_list = {}
+
+        for res in res_list:
+            csv_file = data_dir + res + metric_name + stat_type + ".csv"
+            csv_list[res] = csv_file
+
+        print("Constructed list of csv filess:", csv_list)
+        return csv_list
+
+    def process_csv(self, res, csvfile, metric_name, stat_type):
         df = pd.read_csv(csvfile, sep=',')
         summary_df = pd.DataFrame()
 
@@ -27,14 +35,26 @@ class StatsAggregator(object):
             print("Summarizing %d data points for resource %s, node pool %s"
                   %(len(stats_pool), res, nodepool))
 
+            fig_name = res + metric_name + stat_type + "_" + nodepool
+            stats_pool.plot(x='time', y='value', title=fig_name)
+            outfig = fig_name + ".png"
+            plt.savefig(outfig)
+
         self.summary_stats[res] = summary_df
 
-        outfile = OUTPUT_DIR + "instance_resource_stats_" + res + ".csv"
+        outfile = OUTPUT_DIR + res + metric_name + stat_type + ".csv"
         print("\nWriting summary stats of %s resource for all node pools to %s\n" %(res, outfile))
         self.summary_stats[res].to_csv(outfile)
 
-if __name__ == "__main__":
-    aggregator = StatsAggregator()
+        plt.close('all')
 
-    for k, v in CSV_LIST.items():
-        aggregator.process_csv(k, v)
+if __name__ == "__main__":
+    aggregator1 = StatsAggregator()
+    csv_list1 = aggregator1.get_csv_list(RES_LIST, INPUT_DIR, METRIC_NAME, '95p')
+    for k, v in csv_list1.items():
+        aggregator1.process_csv(k, v, METRIC_NAME, '95p')
+
+    aggregator2 = StatsAggregator()
+    csv_list2 = aggregator2.get_csv_list(RES_LIST, INPUT_DIR, METRIC_NAME, 'max')
+    for k, v in csv_list2.items():
+        aggregator2.process_csv(k, v, METRIC_NAME, 'max')
