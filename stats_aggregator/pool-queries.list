@@ -1,0 +1,4 @@
+[
+  'sum( rate(container_cpu_usage_seconds_total{image!=""}[5m])) by (node_pool) / sum(machine_cpu_cores)by (node_pool) * 100',
+  'sum(container_memory_usage_bytes{id="/"}) by (node_pool) / sum(machine_memory_bytes)by (node_pool) * 100'
+]
