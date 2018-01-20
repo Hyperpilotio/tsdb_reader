@@ -36,15 +36,17 @@ class StatsAggregator(object):
                   %(len(stats_pool), res, nodepool))
 
             fig_name = res + metric_name + stat_type + "_" + nodepool
+            stats_pool.loc[:, 'time'] = pd.to_datetime(stats_pool['time'], unit='ms')
             stats_pool.plot(x='time', y='value', title=fig_name)
-            outfig = fig_name + ".png"
-            plt.savefig(outfig)
+            plt.ylabel('Percent (%)')
+            plt.legend().set_visible(False)
+            plt.savefig(fig_name+".png")
 
         self.summary_stats[res] = summary_df
 
         outfile = OUTPUT_DIR + res + metric_name + stat_type + ".csv"
         print("\nWriting summary stats of %s resource for all node pools to %s\n" %(res, outfile))
-        self.summary_stats[res].to_csv(outfile)
+        #self.summary_stats[res].to_csv(outfile)
 
         plt.close('all')
 
