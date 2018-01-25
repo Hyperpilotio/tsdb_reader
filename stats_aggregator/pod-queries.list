@@ -1,6 +1,6 @@
 [
-  'quantile(0.95, sum( rate(container_cpu_usage_seconds_total{image!=""}[5m])) by (node_pool, pod_name) / sum(container_spec_cpu_quota/container_spec_cpu_period{image!=""}>0)by (node_pool, pod_name)) by(node_pool)',
+  'quantile(0.95, sum( rate(container_cpu_usage_seconds_total{image!=""}[5m])) by (node_pool, pod_name) / sum(container_spec_cpu_quota/container_spec_cpu_period{image!=""}>0)by (node_pool, pod_name) * 100) by(node_pool)',
   'quantile(0.95, sum(container_memory_usage_bytes{image!=""}) by (node_pool, pod_name) / sum(container_spec_memory_limit_bytes{image!=""}>0) by(node_pool, pod_name) * 100) by (node_pool)',
-  'max( sum( rate(container_cpu_usage_seconds_total{image!=""}[5m])) by (node_pool, pod_name) / sum(container_spec_cpu_quota/container_spec_cpu_period{image!=""}>0)by (node_pool, pod_name)) by(node_pool)',
+  'max( sum( rate(container_cpu_usage_seconds_total{image!=""}[5m])) by (node_pool, pod_name) / sum(container_spec_cpu_quota/container_spec_cpu_period{image!=""}>0)by (node_pool, pod_name) * 100) by(node_pool)',
   'max( sum(container_memory_usage_bytes{image!=""}) by (node_pool, pod_name) / sum(container_spec_memory_limit_bytes{image!=""}>0) by(node_pool, pod_name) * 100) by (node_pool)'
 ]

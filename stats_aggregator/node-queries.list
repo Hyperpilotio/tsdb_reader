@@ -1,5 +1,6 @@
 [ "max(sum(rate(container_cpu_usage_seconds_total{id='/'}[5m])) by (node_pool, instance) / sum(machine_cpu_cores) by(node_pool, instance) *100) by (node_pool)", 
   "max(sum(container_memory_usage_bytes{id='/'}) by (node_pool, instance) / sum(machine_memory_bytes) by(node_pool, instance) *100) by (node_pool)",
+  "max(sum(container_memory_working_set_bytes{id='/'}) by (node_pool, instance) / sum(machine_memory_bytes) by(node_pool, instance) *100) by (node_pool)",
   "max(sum(rate(container_network_transmit_bytes_total[5m])) by (node_pool, instance) / 2e9 * 100) by (node_pool)",
   "max(sum(rate(container_network_receive_bytes_total[5m])) by (node_pool, instance) / 2e9 * 100) by (node_pool)",
   "max(sum(rate(container_fs_reads_bytes_total{node_pool='druid-ssd-preempt'}[5m])) by (node_pool, instance) / 1.56e9 * 100) by (node_pool)",
