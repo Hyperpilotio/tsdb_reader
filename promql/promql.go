@@ -25,7 +25,6 @@ func parseMsString(value string) (*time.Time, error) {
 	return &t, nil
 }
 
-
 func printMatrixAsCsv(matrix promql.Matrix) {
 	firstLine := true
 	columns := []string{"time", "value"}
@@ -66,10 +65,9 @@ func printVectorAsCsv(vector promql.Vector) {
 		for _, label := range sample.Metric {
 			values = append(values, label.Value)
 		}
-		fmt.Printf(csvFormat +"\n", values...)
+		fmt.Printf(csvFormat+"\n", values...)
 	}
 }
-
 
 func main() {
 	if len(os.Args) < 4 {
@@ -115,7 +113,7 @@ func main() {
 			fmt.Println("Unable to parse end time: " + err.Error())
 			return
 		}
-		interval := 5*time.Second
+		interval := 5 * time.Second
 		if len(os.Args) >= 6 {
 			intervalSeconds, err := strconv.Atoi(os.Args[5])
 			if err != nil {
@@ -138,7 +136,10 @@ func main() {
 	}
 
 	result := query.Exec(context.Background())
-	if result.Err != nil {
+	if result == nil {
+		fmt.Println("Query result is nil, most likely invalid query")
+		return
+	} else if result.Err != nil {
 		fmt.Println("Query exec error: " + result.Err.Error())
 		return
 	}
