@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 
 INPUT_DIR = "~/data/query-result/"
 OUTPUT_DIR = "~/data/summary-stats/"
-#RES_LIST = ['cpu', 'mem', 'net_send', 'net_receive', 'disk_read', 'disk_write']
-RES_LIST = ['cpu', 'mem']
+RES_LIST = ['cpu', 'mem', 'net_send', 'net_receive', 'disk_read', 'disk_write']
 METRIC_LIST = ['_util_per_instance_95p', '_util_per_instance_max', '_util_per_pool', '_util_per_pod']
 COST_MAP = {'action-classify': 0.248, 'action-gke': 1.22, 'db': 0.663, 'db-preempt': 0.663, 'druid-preempt': 0.663,
             'druid-ssd-preempt': 0.704, 'mixed': 0.248, 'mixed-preempt': 0.248, 'nginx': 0.266, 'ping-gke': 0.69}
@@ -27,7 +26,7 @@ class StatsAggregator(object):
         print("Constructed list of csv filess:", csv_list)
         return csv_list
 
-    def process_csv(self, res, csvfile, out_dir):
+    def process_csv(self, res, csvfile, outfile):
         df = pd.read_csv(csvfile, sep=',')
         summary_df = pd.DataFrame()
 
@@ -44,14 +43,13 @@ class StatsAggregator(object):
             plt.legend().set_visible(False)
             plt.savefig(fig_name+".png")
 
-        outfile = out_dir + res + self.metric_name + ".csv"
         print("\nWriting summary stats of %s resource for all node pools to %s\n" %(res, outfile))
         summary_df.to_csv(outfile)
 
         plt.close('all')
 
 
-    def compute_waste_res(self, res, csv_util, csv_num, out_dir):
+    def compute_waste_res(self, res, csv_util, csv_num, outfile):
         df_util = pd.read_csv(csv_util, sep=',')
         df_num = pd.read_csv(csv_num, sep=',')
         waste_list = []
@@ -72,12 +70,11 @@ class StatsAggregator(object):
                                'unused instances': waste_num, 'wasted cost': waste_cost})
             print("Average hourly cost wasted for %s resource in nodepool %s: %.2f" %(res, nodepool, waste_cost))
 
-        outfile = out_dir + res + '_waste_cost' + ".csv"
         waste_df = pd.DataFrame(waste_list)
         waste_df.to_csv(outfile)
 
 
-    def compute_waste_mixed(self, res_list, csv_list, csv_num, out_dir):
+    def compute_waste_mixed(self, res_list, csv_list, csv_num, outfile):
         if len(res_list) > 2:
             print("Cannot combine more than two resources!")
             return
@@ -109,7 +106,6 @@ class StatsAggregator(object):
                                'unused instances': waste_num, 'wasted cost': waste_cost})
             print("Average hourly cost wasted in nodepool %s: %.2f" %(nodepool, waste_cost))
 
-        outfile = out_dir + 'waste_cost_mixed' + ".csv"
         waste_df = pd.DataFrame(waste_list)
         waste_df.to_csv(outfile)
 
@@ -118,16 +114,20 @@ if __name__ == "__main__":
     for metric_name in METRIC_LIST:
         aggregator = StatsAggregator(metric_name)
         csv_list = aggregator.get_csv_list(RES_LIST, INPUT_DIR)
-        for k, v in csv_list.items():
-            aggregator.process_csv(k, v, OUTPUT_DIR)
+        for res, csv_res in csv_list.items():
+            outfile = OUTPUT_DIR + res + metric_name + ".csv"
+            aggregator.process_csv(res, csv_res, outfile)
 
+    RES_LIST = ['cpu', 'mem']
     aggregator = StatsAggregator("_util_per_pool")
     csv_list = aggregator.get_csv_list(RES_LIST, INPUT_DIR)
     csv_num = INPUT_DIR + "num_instances_per_pool.csv"
     for res, csv_res in csv_list.items():
-        aggregator.compute_waste_res(res, csv_res, csv2, OUTPUT_DIR)
+        outfile = OUTPUT_DIR + res + "_waste_cost.csv"
+        aggregator.compute_waste_res(res, csv_res, csv_num, outfile)
 
     aggregator = StatsAggregator("_util_per_pool")
     csv_list = aggregator.get_csv_list(RES_LIST, INPUT_DIR)
     csv_num = INPUT_DIR + "num_instances_per_pool.csv"
-    aggregator.compute_waste_mixed(RES_LIST, csv_list, csv_num, OUTPUT_DIR)
+    outfile = OUTPUT_DIR + "waste_cost_mixed.csv"
+    aggregator.compute_waste_mixed(RES_LIST, csv_list, csv_num, outfile)
